@@ -1,5 +1,5 @@
-const API_URL = 'https://scanners-modes-maps-laptops.trycloudflare.com/api/chat'; 
-const UPLOAD_URL = 'https://scanners-modes-maps-laptops.trycloudflare.com/api/upload';
+const API_URL = 'https://used-forty-llc-affected.trycloudflare.com/api/chat'; 
+const UPLOAD_URL = 'https://used-forty-llc-affected.trycloudflare.com/api/upload';
 
 const chatContainer = document.getElementById('chat-container');
 const userInput = document.getElementById('user-input');
