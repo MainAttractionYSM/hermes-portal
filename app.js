@@ -1,4 +1,4 @@
-const BASE_URL = 'https://noble-oxygen-coated-ala.trycloudflare.com';
+const BASE_URL = 'https://destinations-sleeps-andrews-excess.trycloudflare.com';
 const API_URL = `${BASE_URL}/api/chat`;
 const UPLOAD_URL = `${BASE_URL}/api/upload`;
 const APPROVE_URL = `${BASE_URL}/api/approve`;
