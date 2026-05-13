@@ -1,5 +1,5 @@
-const API_URL = 'https://dates-weapon-accurately-treatments.trycloudflare.com
-const UPLOAD_URL = 'https://dates-weapon-accurately-treatments.trycloudflare.com
+const API_URL = 'https://noble-oxygen-coated-ala.trycloudflare.com/api/chat';
+const UPLOAD_URL = 'https://noble-oxygen-coated-ala.trycloudflare.com/api/upload';
 
 const chatContainer = document.getElementById('chat-container');
 const userInput = document.getElementById('user-input');
