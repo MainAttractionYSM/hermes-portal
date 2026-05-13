@@ -18,6 +18,8 @@
         #chat-container { scroll-behavior: smooth; }
         .sidebar-open { transform: translateX(0) !important; }
         .model-btn.active { background: rgba(59,130,246,0.2); border-color: rgba(59,130,246,0.5); color: #60a5fa; }
+        .mode-btn.active { background: rgba(139,92,246,0.2); border-color: rgba(139,92,246,0.5); color: #a78bfa; }
+        .agent-mode .glow-input { box-shadow: 0 0 15px rgba(139,92,246,0.4); }
     </style>
 </head>
 <body class="flex h-full overflow-hidden">
@@ -41,12 +43,28 @@
             </button>
         </div>
 
-        <div class="px-4 pb-3">
+        <!-- Model Selector -->
+        <div class="px-4 pb-2">
             <div class="glass rounded-xl p-3">
-                <p class="text-xs text-gray-500 uppercase tracking-widest mb-2">Active Model</p>
+                <p class="text-xs text-gray-500 uppercase tracking-widest mb-2">Model</p>
                 <div class="flex gap-2">
                     <button onclick="setModel('gptoss')" id="btn-gptoss" class="model-btn active flex-1 text-xs py-2 px-2 rounded-lg border border-white/10 transition-all">GPT-OSS 120b</button>
                     <button onclick="setModel('kimi')" id="btn-kimi" class="model-btn flex-1 text-xs py-2 px-2 rounded-lg border border-white/10 transition-all hover:bg-white/5">Kimi K2.6</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Mode Selector -->
+        <div class="px-4 pb-3">
+            <div class="glass rounded-xl p-3">
+                <p class="text-xs text-gray-500 uppercase tracking-widest mb-2">Mode</p>
+                <div class="flex gap-2">
+                    <button onclick="setMode('chat')" id="btn-chat" class="mode-btn active flex-1 text-xs py-2 px-2 rounded-lg border border-white/10 transition-all">
+                        <i class="fas fa-comment mr-1"></i>Chat
+                    </button>
+                    <button onclick="setMode('agent')" id="btn-agent" class="mode-btn flex-1 text-xs py-2 px-2 rounded-lg border border-white/10 transition-all hover:bg-white/5">
+                        <i class="fas fa-code mr-1"></i>Agent
+                    </button>
                 </div>
             </div>
         </div>
@@ -75,28 +93,38 @@
                 <div class="flex items-center gap-2">
                     <span class="w-2 h-2 bg-green-500 rounded-full animate-pulse"></span>
                     <span id="active-model-label" class="text-sm font-medium text-gray-300">GPT-OSS 120b</span>
+                    <span id="active-mode-badge" class="text-xs px-2 py-0.5 rounded-full bg-blue-600/30 text-blue-400">Chat</span>
                 </div>
             </div>
-            <div class="flex items-center gap-3">
+            <div class="flex items-center gap-2">
                 <div class="flex gap-1 glass rounded-lg p-1">
                     <button onclick="setModel('gptoss')" id="hdr-gptoss" class="model-btn active text-xs px-2 py-1 rounded-md transition-all">GPT</button>
                     <button onclick="setModel('kimi')" id="hdr-kimi" class="model-btn text-xs px-2 py-1 rounded-md transition-all hover:bg-white/5">Kimi</button>
                 </div>
+                <div class="flex gap-1 glass rounded-lg p-1">
+                    <button onclick="setMode('chat')" id="hdr-chat" class="mode-btn active text-xs px-2 py-1 rounded-md transition-all"><i class="fas fa-comment"></i></button>
+                    <button onclick="setMode('agent')" id="hdr-agent" class="mode-btn text-xs px-2 py-1 rounded-md transition-all hover:bg-white/5"><i class="fas fa-code"></i></button>
+                </div>
                 <button onclick="newChat()" class="text-gray-400 hover:text-white transition-colors"><i class="fas fa-plus"></i></button>
-                <button class="text-gray-400 hover:text-white transition-colors"><i class="fas fa-ellipsis-v"></i></button>
             </div>
         </header>
 
-        <div id="chat-container" class="flex-1 overflow-y-auto p-4 md:p-8 space-y-6 custom-scrollbar" style="padding-bottom:120px;">
+        <div id="chat-container" class="flex-1 overflow-y-auto p-4 md:p-8 space-y-6 custom-scrollbar" style="padding-bottom:140px;">
             <div class="flex gap-4 max-w-4xl mx-auto">
                 <div class="w-8 h-8 rounded-lg bg-blue-600 flex-shrink-0 flex items-center justify-center text-xs font-bold shadow-lg shadow-blue-600/20">H</div>
                 <div class="chat-bubble-ai p-4 text-sm leading-relaxed shadow-sm">
-                    Welcome back. Switch between <strong>GPT-OSS 120b</strong> and <strong>Kimi K2.6</strong> using the buttons above. How can I help you today?
+                    Welcome! I'm your AI coding agent.<br><br>
+                    <strong>Chat mode</strong> — general conversation<br>
+                    <strong>Agent mode</strong> — I can read, write, test and push code to your GitHub repo<br><br>
+                    Switch modes using the buttons above. In Agent mode, I'll show you changes and ask for your approval before pushing anything.
                 </div>
             </div>
         </div>
 
         <div class="absolute bottom-0 left-0 w-full p-4 md:p-6 bg-gradient-to-t from-black via-black/90 to-transparent">
+            <div id="mode-banner" class="hidden max-w-4xl mx-auto mb-2 px-3 py-1.5 rounded-lg bg-purple-600/20 border border-purple-500/30 text-purple-300 text-xs flex items-center gap-2">
+                <i class="fas fa-code"></i> Agent Mode — I have access to your GitHub repo
+            </div>
             <div class="max-w-4xl mx-auto relative">
                 <input type="file" id="file-upload" class="hidden" multiple />
                 <div id="file-preview" class="mb-2 flex gap-2 overflow-x-auto hidden"></div>
@@ -126,13 +154,39 @@
         }
 
         let currentModel = 'gptoss';
+        window.currentModel = currentModel;
         function setModel(model) {
             currentModel = model;
+            window.currentModel = model;
             ['gptoss','kimi'].forEach(m => {
                 document.getElementById('btn-'+m)?.classList.toggle('active', m===model);
                 document.getElementById('hdr-'+m)?.classList.toggle('active', m===model);
             });
             document.getElementById('active-model-label').textContent = model==='kimi' ? 'Kimi K2.6' : 'GPT-OSS 120b';
+        }
+
+        let currentMode = 'chat';
+        window.currentMode = currentMode;
+        function setMode(mode) {
+            currentMode = mode;
+            window.currentMode = mode;
+            ['chat','agent'].forEach(m => {
+                document.getElementById('btn-'+m)?.classList.toggle('active', m===mode);
+                document.getElementById('hdr-'+m)?.classList.toggle('active', m===mode);
+            });
+            const badge = document.getElementById('active-mode-badge');
+            const banner = document.getElementById('mode-banner');
+            if (mode === 'agent') {
+                badge.textContent = 'Agent';
+                badge.className = 'text-xs px-2 py-0.5 rounded-full bg-purple-600/30 text-purple-400';
+                banner.classList.remove('hidden');
+                document.getElementById('user-input').placeholder = 'Ask me to fix, create or modify code...';
+            } else {
+                badge.textContent = 'Chat';
+                badge.className = 'text-xs px-2 py-0.5 rounded-full bg-blue-600/30 text-blue-400';
+                banner.classList.add('hidden');
+                document.getElementById('user-input').placeholder = 'Message Hermes...';
+            }
         }
 
         function newChat() {
