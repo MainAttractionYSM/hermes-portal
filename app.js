@@ -20,7 +20,7 @@ async function loadRepos() {
         const data = await res.json();
         const repos = data.repos || {};
         const select = document.getElementById('repo-select');
-        select.innerHTML = '<option value="">Select repo...</option>';
+        select.innerHTML = '<option value="">No repo selected</option>';
         Object.keys(repos).forEach(name => {
             const opt = document.createElement('option');
             opt.value = name;
@@ -34,16 +34,68 @@ async function loadRepos() {
 
 function onRepoChange(val) {
     activeRepo = val || null;
+    window.activeRepo = activeRepo;
     const label = document.getElementById('active-repo-label');
     const badge = document.getElementById('repo-badge');
+    const headerBadge = document.getElementById('header-repo-badge');
+    const bannerText = document.getElementById('banner-repo-text');
     if (val) {
-        label.textContent = val;
-        badge.classList.remove('hidden');
-        badge.textContent = val;
+        if(label) label.textContent = val;
+        if(badge) badge.classList.remove('hidden');
+        if(headerBadge) { headerBadge.classList.remove('hidden'); headerBadge.textContent = '📁 ' + val; }
+        if(bannerText) bannerText.textContent = `Active repo: ${val}`;
     } else {
-        label.textContent = 'No repo';
-        badge.classList.add('hidden');
+        if(badge) badge.classList.add('hidden');
+        if(headerBadge) headerBadge.classList.add('hidden');
+        if(bannerText) bannerText.textContent = 'General agent mode — optionally select a repo';
     }
+}
+
+// Thinking steps for agent mode
+const THINKING_STEPS = {
+    default: ['🧠 Thinking...', '✏️ Preparing response...'],
+    repo: ['📁 Reading repo files...', '🧠 Analyzing code...', '✏️ Writing response...'],
+    code: ['🧠 Planning changes...', '✏️ Writing code...', '🧪 Preparing tests...'],
+};
+
+function showThinking(hasRepo) {
+    const id = 'thinking-' + Date.now();
+    const model = window.currentModel || 'gptoss';
+    const steps = hasRepo ? THINKING_STEPS.repo : THINKING_STEPS.default;
+    
+    const wrap = document.createElement('div');
+    wrap.className = 'flex gap-4 max-w-4xl mx-auto';
+    wrap.id = id;
+    wrap.innerHTML = `
+        <div class="w-8 h-8 rounded-lg bg-blue-600 flex-shrink-0 flex items-center justify-center text-sm shadow-lg shadow-blue-600/20">${getModelAvatar(model)}</div>
+        <div class="chat-bubble-ai p-4 space-y-2 min-w-48">
+            <div id="${id}-step" class="text-xs text-gray-400 flex items-center gap-2">
+                <span class="w-2 h-2 bg-blue-400 rounded-full animate-pulse"></span>
+                <span>${steps[0]}</span>
+            </div>
+            <div class="flex gap-1 items-center">
+                <span class="w-1.5 h-1.5 bg-gray-400 rounded-full animate-bounce" style="animation-delay:0s"></span>
+                <span class="w-1.5 h-1.5 bg-gray-400 rounded-full animate-bounce" style="animation-delay:0.2s"></span>
+                <span class="w-1.5 h-1.5 bg-gray-400 rounded-full animate-bounce" style="animation-delay:0.4s"></span>
+            </div>
+        </div>`;
+    chatContainer.appendChild(wrap);
+    chatContainer.scrollTop = chatContainer.scrollHeight;
+
+    // Cycle through steps
+    let stepIdx = 0;
+    const interval = setInterval(() => {
+        stepIdx = (stepIdx + 1) % steps.length;
+        const el = document.getElementById(`${id}-step`);
+        if (el) el.querySelector('span:last-child').textContent = steps[stepIdx];
+    }, 2000);
+
+    return { id, interval };
+}
+
+function removeThinking({ id, interval }) {
+    clearInterval(interval);
+    document.getElementById(id)?.remove();
 }
 
 async function handleSend() {
@@ -56,12 +108,11 @@ async function handleSend() {
 
     if (attachedFiles.length > 0) await uploadFiles();
 
-    const typingId = showTyping();
+    const model = window.currentModel || 'gptoss';
+    const mode = window.currentMode || 'chat';
+    const thinking = showThinking(mode === 'agent' && !!activeRepo);
 
     try {
-        const model = window.currentModel || 'gptoss';
-        const mode = window.currentMode || 'chat';
-
         const body = { message: text, model, mode, files: attachedFiles.map(f => f.name) };
         if (mode === 'agent' && activeRepo) body.repo = activeRepo;
 
@@ -71,7 +122,7 @@ async function handleSend() {
             body: JSON.stringify(body)
         });
         const data = await response.json();
-        removeTyping(typingId);
+        removeThinking(thinking);
 
         if (data.needs_repo_selection) {
             appendMessage('ai', data.response);
@@ -83,7 +134,7 @@ async function handleSend() {
             appendMessage('ai', data.response || 'No response.');
         }
     } catch (e) {
-        removeTyping(typingId);
+        removeThinking(thinking);
         appendMessage('ai', 'Error: Could not connect to Hermes Gateway.');
     }
 
@@ -103,6 +154,10 @@ function showRepoSelector(repos) {
     card.innerHTML = `<div class="glass rounded-2xl p-4 border border-blue-500/30 space-y-3">
         <p class="text-sm text-gray-300">Choose a repository to work on:</p>
         <div class="flex flex-wrap gap-2">${buttons}</div>
+        <button onclick="this.closest('.max-w-4xl').remove(); appendMessage('ai', 'No repo selected. I will work in general agent mode.')" 
+            class="text-xs text-gray-500 hover:text-gray-300 transition-all">
+            Skip — work without a repo
+        </button>
     </div>`;
     chatContainer.appendChild(card);
     chatContainer.scrollTop = chatContainer.scrollHeight;
@@ -110,6 +165,7 @@ function showRepoSelector(repos) {
 
 function selectRepoFromChat(repo, btn) {
     activeRepo = repo;
+    window.activeRepo = repo;
     document.getElementById('repo-select').value = repo;
     onRepoChange(repo);
     btn.closest('.max-w-4xl').remove();
@@ -124,15 +180,15 @@ function showApprovalCard(data) {
             <div class="flex items-center gap-2 text-yellow-400 font-medium text-sm">
                 <i class="fas fa-code-branch"></i> Code Ready for Review
             </div>
-            <div class="text-xs text-gray-400 font-mono bg-black/30 p-3 rounded-xl whitespace-pre">${escapeHtml(data.diff)}</div>
+            <div class="text-xs text-gray-400 font-mono bg-black/30 p-3 rounded-xl whitespace-pre overflow-x-auto">${escapeHtml(data.diff)}</div>
             <div class="text-xs text-gray-400">
                 <div class="font-semibold text-gray-300 mb-1">Test Results:</div>
-                <div class="font-mono bg-black/30 p-2 rounded-lg whitespace-pre">${escapeHtml(data.test_results)}</div>
+                <div class="font-mono bg-black/30 p-2 rounded-lg whitespace-pre overflow-x-auto">${escapeHtml(data.test_results)}</div>
             </div>
             <div class="flex gap-2 pt-1">
                 <button onclick="approveChanges('${data.approval_id}', true, this)"
                     class="flex-1 py-2 px-4 bg-green-600 hover:bg-green-500 text-white text-sm rounded-xl transition-all flex items-center justify-center gap-2">
-                    <i class="fas fa-check"></i> Approve & Push to GitHub
+                    <i class="fas fa-check"></i> Approve & Push
                 </button>
                 <button onclick="approveChanges('${data.approval_id}', false, this)"
                     class="flex-1 py-2 px-4 bg-red-600/50 hover:bg-red-500 text-white text-sm rounded-xl transition-all flex items-center justify-center gap-2">
@@ -162,34 +218,11 @@ async function approveChanges(approvalId, approved, btn) {
 }
 
 function getModelAvatar(model) {
-    if (model === 'kimi') return '🌙';
-    return '◼';
+    return model === 'kimi' ? '🌙' : '◼';
 }
 
 function escapeHtml(text) {
     return (text || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
-}
-
-function showTyping() {
-    const id = 'typing-' + Date.now();
-    const model = window.currentModel || 'gptoss';
-    const wrap = document.createElement('div');
-    wrap.className = 'flex gap-4 max-w-4xl mx-auto';
-    wrap.id = id;
-    wrap.innerHTML = `
-        <div class="w-8 h-8 rounded-lg bg-blue-600 flex-shrink-0 flex items-center justify-center text-sm shadow-lg shadow-blue-600/20">${getModelAvatar(model)}</div>
-        <div class="chat-bubble-ai p-4 flex gap-1 items-center">
-            <span class="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style="animation-delay:0s"></span>
-            <span class="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style="animation-delay:0.2s"></span>
-            <span class="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style="animation-delay:0.4s"></span>
-        </div>`;
-    chatContainer.appendChild(wrap);
-    chatContainer.scrollTop = chatContainer.scrollHeight;
-    return id;
-}
-
-function removeTyping(id) {
-    document.getElementById(id)?.remove();
 }
 
 function appendMessage(role, content) {
@@ -240,5 +273,4 @@ userInput.onkeydown = (e) => {
     if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend(); }
 };
 
-// Load repos on startup
 loadRepos();
