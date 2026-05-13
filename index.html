@@ -15,7 +15,7 @@
         .custom-scrollbar::-webkit-scrollbar { width: 4px; }
         .custom-scrollbar::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.2); border-radius: 10px; }
         .glow-input:focus-within { box-shadow: 0 0 15px rgba(59,130,246,0.5); }
-        #chat-container { scroll-behavior: smooth; overflow-y: scroll !important; -webkit-overflow-scrolling: touch; touch-action: pan-y; }
+        #chat-container { overflow-y: auto !important; -webkit-overflow-scrolling: touch; overscroll-behavior: contain; }
         .sidebar-open { transform: translateX(0) !important; }
         .model-btn.active { background: rgba(59,130,246,0.2); border-color: rgba(59,130,246,0.5); color: #60a5fa; }
         .mode-btn.active { background: rgba(139,92,246,0.2); border-color: rgba(139,92,246,0.5); color: #a78bfa; }
