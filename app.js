@@ -9,36 +9,31 @@ const filePreview = document.getElementById('file-preview');
 
 let attachedFiles = [];
 
-// Handle Send
 async function handleSend() {
     const text = userInput.value.trim();
     if (!text && attachedFiles.length === 0) return;
 
-    // Clear input
     userInput.value = '';
     userInput.style.height = 'auto';
-    
-    // User Message Bubble
     appendMessage('user', text);
-    
-    // Handle File Uploads first
-    if (attachedFiles.length > 0) {
-        await uploadFiles();
-    }
-    
-    // Send to Agent
+
+    if (attachedFiles.length > 0) await uploadFiles();
+
+    // Show typing indicator
+    const typingId = showTyping();
+
     try {
+        const model = window.currentModel || 'gptoss';
         const response = await fetch(API_URL, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ 
-                message: text,
-                files: attachedFiles.map(f => f.name)
-            })
+            body: JSON.stringify({ message: text, model: model, files: attachedFiles.map(f => f.name) })
         });
         const data = await response.json();
+        removeTyping(typingId);
         appendMessage('ai', data.response || 'No response from agent.');
     } catch (e) {
+        removeTyping(typingId);
         appendMessage('ai', 'Error: Could not connect to Hermes Gateway.');
     }
 
@@ -47,23 +42,41 @@ async function handleSend() {
     filePreview.classList.add('hidden');
 }
 
+function showTyping() {
+    const id = 'typing-' + Date.now();
+    const wrap = document.createElement('div');
+    wrap.className = 'flex gap-4 max-w-4xl mx-auto';
+    wrap.id = id;
+    wrap.innerHTML = `
+        <div class="w-8 h-8 rounded-lg bg-blue-600 flex-shrink-0 flex items-center justify-center text-xs font-bold">H</div>
+        <div class="chat-bubble-ai p-4 flex gap-1 items-center">
+            <span class="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style="animation-delay:0s"></span>
+            <span class="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style="animation-delay:0.2s"></span>
+            <span class="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style="animation-delay:0.4s"></span>
+        </div>`;
+    chatContainer.appendChild(wrap);
+    chatContainer.scrollTop = chatContainer.scrollHeight;
+    return id;
+}
+
+function removeTyping(id) {
+    document.getElementById(id)?.remove();
+}
+
 function appendMessage(role, content) {
     const wrap = document.createElement('div');
     wrap.className = 'flex gap-4 max-w-4xl mx-auto ' + (role === 'user' ? 'justify-end' : '');
-    
+
     const avatar = document.createElement('div');
-    avatar.className = (role === 'user' ? 'hidden' : 'w-8 h-8 rounded-lg bg-blue-600 flex-shrink-0 flex items-center justify-center text-xs font-bold shadow-lg shadow-blue-600/20');
+    avatar.className = 'w-8 h-8 rounded-lg bg-blue-600 flex-shrink-0 flex items-center justify-center text-xs font-bold shadow-lg shadow-blue-600/20';
     avatar.innerText = 'H';
 
     const bubble = document.createElement('div');
-    bubble.className = 'p-4 text-sm leading-relaxed shadow-sm ' + 
-        (role === 'user' ? 'chat-bubble-user text-white' : 'chat-bubble-ai');
+    bubble.className = 'p-4 text-sm leading-relaxed shadow-sm ' + (role === 'user' ? 'chat-bubble-user text-white' : 'chat-bubble-ai');
     bubble.innerText = content;
 
     if (role === 'user') {
         wrap.appendChild(bubble);
-        wrap.appendChild(avatar); // Reversed for user
-        avatar.className = 'hidden'; // Keep hidden for now
     } else {
         wrap.appendChild(avatar);
         wrap.appendChild(bubble);
@@ -76,25 +89,18 @@ function appendMessage(role, content) {
 async function uploadFiles() {
     const formData = new FormData();
     attachedFiles.forEach(file => formData.append('files', file));
-
     try {
-        await fetch(UPLOAD_URL, {
-            method: 'POST',
-            body: formData
-        });
+        await fetch(UPLOAD_URL, { method: 'POST', body: formData });
     } catch (e) {
         console.error('Upload failed', e);
     }
 }
 
-// File Selection
 fileUpload.onchange = () => {
     const files = Array.from(fileUpload.files);
     attachedFiles.push(...files);
-    
     filePreview.innerHTML = '';
     filePreview.classList.remove('hidden');
-    
     files.forEach(file => {
         const item = document.createElement('div');
         item.className = 'glass p-2 rounded-lg text-xs flex items-center gap-2 text-white';
@@ -112,8 +118,5 @@ function getFileIcon(name) {
 
 sendBtn.onclick = handleSend;
 userInput.onkeydown = (e) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
-        e.preventDefault();
-        handleSend();
-    }
+    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend(); }
 };
