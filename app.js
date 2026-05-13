@@ -80,7 +80,7 @@ function showThinking(hasRepo) {
             </div>
         </div>`;
     chatContainer.appendChild(wrap);
-    chatContainer.scrollTop = chatContainer.scrollHeight;
+    setTimeout(() => { chatContainer.scrollTop = chatContainer.scrollHeight; }, 100);
 
     // Cycle through steps
     let stepIdx = 0;
@@ -238,7 +238,7 @@ function appendMessage(role, content) {
     if (role === 'user') { wrap.appendChild(bubble); }
     else { wrap.appendChild(avatar); wrap.appendChild(bubble); }
     chatContainer.appendChild(wrap);
-    chatContainer.scrollTop = chatContainer.scrollHeight;
+    setTimeout(() => { chatContainer.scrollTop = chatContainer.scrollHeight; }, 100);
 }
 
 async function uploadFiles() {
