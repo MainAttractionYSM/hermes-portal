@@ -19,7 +19,9 @@
         .sidebar-open { transform: translateX(0) !important; }
         .model-btn.active { background: rgba(59,130,246,0.2); border-color: rgba(59,130,246,0.5); color: #60a5fa; }
         .mode-btn.active { background: rgba(139,92,246,0.2); border-color: rgba(139,92,246,0.5); color: #a78bfa; }
-        .agent-mode .glow-input { box-shadow: 0 0 15px rgba(139,92,246,0.4); }
+        select { background: rgba(20,20,25,0.9); border: 1px solid rgba(255,255,255,0.1); color: #e2e8f0; border-radius: 8px; padding: 6px 8px; font-size: 12px; width: 100%; cursor: pointer; }
+        select:focus { outline: none; border-color: rgba(59,130,246,0.5); }
+        select option { background: #0a0a0c; }
     </style>
 </head>
 <body class="flex h-full overflow-hidden">
@@ -27,7 +29,7 @@
     <div id="sidebar-overlay" class="fixed inset-0 bg-black/60 z-20 hidden" onclick="toggleSidebar()"></div>
 
     <aside id="sidebar" class="w-72 glass h-full flex flex-col fixed md:relative z-30 transition-transform duration-300 -translate-x-full md:translate-x-0">
-        <div class="p-6 flex items-center justify-between">
+        <div class="p-5 flex items-center justify-between">
             <div class="flex items-center gap-3">
                 <div class="w-8 h-8 bg-gradient-to-br from-blue-500 to-purple-600 rounded-lg flex items-center justify-center shadow-lg shadow-blue-500/20">
                     <i class="fas fa-bolt text-white text-sm"></i>
@@ -38,33 +40,47 @@
         </div>
 
         <div class="px-4 pb-3">
-            <button onclick="newChat()" class="w-full flex items-center justify-center gap-2 p-3 rounded-xl bg-blue-600 hover:bg-blue-500 transition-all text-sm font-medium shadow-lg shadow-blue-600/20 active:scale-95">
+            <button onclick="newChat()" class="w-full flex items-center justify-center gap-2 p-3 rounded-xl bg-blue-600 hover:bg-blue-500 transition-all text-sm font-medium active:scale-95">
                 <i class="fas fa-plus"></i> New Chat
             </button>
         </div>
 
-        <!-- Model Selector -->
+        <!-- Model -->
         <div class="px-4 pb-2">
             <div class="glass rounded-xl p-3">
                 <p class="text-xs text-gray-500 uppercase tracking-widest mb-2">Model</p>
                 <div class="flex gap-2">
-                    <button onclick="setModel('gptoss')" id="btn-gptoss" class="model-btn active flex-1 text-xs py-2 px-2 rounded-lg border border-white/10 transition-all">GPT-OSS 120b</button>
-                    <button onclick="setModel('kimi')" id="btn-kimi" class="model-btn flex-1 text-xs py-2 px-2 rounded-lg border border-white/10 transition-all hover:bg-white/5">Kimi K2.6</button>
+                    <button onclick="setModel('gptoss')" id="btn-gptoss" class="model-btn active flex-1 text-xs py-2 rounded-lg border border-white/10 transition-all">◼ GPT-OSS</button>
+                    <button onclick="setModel('kimi')" id="btn-kimi" class="model-btn flex-1 text-xs py-2 rounded-lg border border-white/10 transition-all hover:bg-white/5">🌙 Kimi</button>
                 </div>
             </div>
         </div>
 
-        <!-- Mode Selector -->
-        <div class="px-4 pb-3">
+        <!-- Mode -->
+        <div class="px-4 pb-2">
             <div class="glass rounded-xl p-3">
                 <p class="text-xs text-gray-500 uppercase tracking-widest mb-2">Mode</p>
                 <div class="flex gap-2">
-                    <button onclick="setMode('chat')" id="btn-chat" class="mode-btn active flex-1 text-xs py-2 px-2 rounded-lg border border-white/10 transition-all">
+                    <button onclick="setMode('chat')" id="btn-chat" class="mode-btn active flex-1 text-xs py-2 rounded-lg border border-white/10 transition-all">
                         <i class="fas fa-comment mr-1"></i>Chat
                     </button>
-                    <button onclick="setMode('agent')" id="btn-agent" class="mode-btn flex-1 text-xs py-2 px-2 rounded-lg border border-white/10 transition-all hover:bg-white/5">
+                    <button onclick="setMode('agent')" id="btn-agent" class="mode-btn flex-1 text-xs py-2 rounded-lg border border-white/10 transition-all hover:bg-white/5">
                         <i class="fas fa-code mr-1"></i>Agent
                     </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Repo Selector -->
+        <div class="px-4 pb-3" id="repo-selector-panel">
+            <div class="glass rounded-xl p-3">
+                <p class="text-xs text-gray-500 uppercase tracking-widest mb-2">Active Repo</p>
+                <select id="repo-select" onchange="onRepoChange(this.value)">
+                    <option value="">Select repo...</option>
+                </select>
+                <div id="repo-badge" class="hidden mt-2 text-xs text-green-400 flex items-center gap-1">
+                    <i class="fas fa-check-circle"></i>
+                    <span id="active-repo-label">none</span>
                 </div>
             </div>
         </div>
@@ -81,7 +97,6 @@
                     <p class="text-sm font-medium truncate">MainAttractionYSM</p>
                     <p class="text-xs text-gray-500">Online</p>
                 </div>
-                <i class="fas fa-cog text-gray-400 hover:text-white transition-colors"></i>
             </div>
         </div>
     </aside>
@@ -89,41 +104,42 @@
     <main class="flex-1 flex flex-col h-full relative min-w-0">
         <header class="h-16 glass px-4 flex items-center justify-between z-10 flex-shrink-0">
             <div class="flex items-center gap-3">
-                <button onclick="toggleSidebar()" class="text-gray-400 hover:text-white transition-colors"><i class="fas fa-bars"></i></button>
-                <div class="flex items-center gap-2">
+                <button onclick="toggleSidebar()" class="text-gray-400 hover:text-white"><i class="fas fa-bars"></i></button>
+                <div class="flex items-center gap-2 flex-wrap">
                     <span class="w-2 h-2 bg-green-500 rounded-full animate-pulse"></span>
                     <span id="active-model-label" class="text-sm font-medium text-gray-300">GPT-OSS 120b</span>
                     <span id="active-mode-badge" class="text-xs px-2 py-0.5 rounded-full bg-blue-600/30 text-blue-400">Chat</span>
+                    <span id="header-repo-badge" class="hidden text-xs px-2 py-0.5 rounded-full bg-green-600/30 text-green-400"></span>
                 </div>
             </div>
             <div class="flex items-center gap-2">
                 <div class="flex gap-1 glass rounded-lg p-1">
-                    <button onclick="setModel('gptoss')" id="hdr-gptoss" class="model-btn active text-xs px-2 py-1 rounded-md transition-all">GPT</button>
-                    <button onclick="setModel('kimi')" id="hdr-kimi" class="model-btn text-xs px-2 py-1 rounded-md transition-all hover:bg-white/5">Kimi</button>
+                    <button onclick="setModel('gptoss')" id="hdr-gptoss" class="model-btn active text-xs px-2 py-1 rounded-md transition-all">◼</button>
+                    <button onclick="setModel('kimi')" id="hdr-kimi" class="model-btn text-xs px-2 py-1 rounded-md transition-all hover:bg-white/5">🌙</button>
                 </div>
                 <div class="flex gap-1 glass rounded-lg p-1">
                     <button onclick="setMode('chat')" id="hdr-chat" class="mode-btn active text-xs px-2 py-1 rounded-md transition-all"><i class="fas fa-comment"></i></button>
                     <button onclick="setMode('agent')" id="hdr-agent" class="mode-btn text-xs px-2 py-1 rounded-md transition-all hover:bg-white/5"><i class="fas fa-code"></i></button>
                 </div>
-                <button onclick="newChat()" class="text-gray-400 hover:text-white transition-colors"><i class="fas fa-plus"></i></button>
+                <button onclick="newChat()" class="text-gray-400 hover:text-white"><i class="fas fa-plus"></i></button>
             </div>
         </header>
 
         <div id="chat-container" class="flex-1 overflow-y-auto p-4 md:p-8 space-y-6 custom-scrollbar" style="padding-bottom:140px;">
             <div class="flex gap-4 max-w-4xl mx-auto">
-                <div class="w-8 h-8 rounded-lg bg-blue-600 flex-shrink-0 flex items-center justify-center text-xs font-bold shadow-lg shadow-blue-600/20">H</div>
+                <div class="w-8 h-8 rounded-lg bg-blue-600 flex-shrink-0 flex items-center justify-center text-sm shadow-lg shadow-blue-600/20">◼</div>
                 <div class="chat-bubble-ai p-4 text-sm leading-relaxed shadow-sm">
                     Welcome! I'm your AI coding agent.<br><br>
                     <strong>Chat mode</strong> — general conversation<br>
-                    <strong>Agent mode</strong> — I can read, write, test and push code to your GitHub repo<br><br>
-                    Switch modes using the buttons above. In Agent mode, I'll show you changes and ask for your approval before pushing anything.
+                    <strong>Agent mode</strong> — select a repo and I'll read, write, test and push code to GitHub<br><br>
+                    Switch to Agent mode and select a repo from the sidebar to get started!
                 </div>
             </div>
         </div>
 
         <div class="absolute bottom-0 left-0 w-full p-4 md:p-6 bg-gradient-to-t from-black via-black/90 to-transparent">
             <div id="mode-banner" class="hidden max-w-4xl mx-auto mb-2 px-3 py-1.5 rounded-lg bg-purple-600/20 border border-purple-500/30 text-purple-300 text-xs flex items-center gap-2">
-                <i class="fas fa-code"></i> Agent Mode — I have access to your GitHub repo
+                <i class="fas fa-code"></i> Agent Mode — <span id="banner-repo-text">Select a repo to start</span>
             </div>
             <div class="max-w-4xl mx-auto relative">
                 <input type="file" id="file-upload" class="hidden" multiple />
@@ -162,7 +178,8 @@
                 document.getElementById('btn-'+m)?.classList.toggle('active', m===model);
                 document.getElementById('hdr-'+m)?.classList.toggle('active', m===model);
             });
-            document.getElementById('active-model-label').textContent = model==='kimi' ? 'Kimi K2.6' : 'GPT-OSS 120b';
+            const label = model === 'kimi' ? '🌙 Kimi K2.6' : '◼ GPT-OSS 120b';
+            document.getElementById('active-model-label').textContent = label;
         }
 
         let currentMode = 'chat';
@@ -192,15 +209,43 @@
         function newChat() {
             document.getElementById('chat-container').innerHTML = `
                 <div class="flex gap-4 max-w-4xl mx-auto">
-                    <div class="w-8 h-8 rounded-lg bg-blue-600 flex-shrink-0 flex items-center justify-center text-xs font-bold shadow-lg shadow-blue-600/20">H</div>
+                    <div class="w-8 h-8 rounded-lg bg-blue-600 flex-shrink-0 flex items-center justify-center text-sm">◼</div>
                     <div class="chat-bubble-ai p-4 text-sm leading-relaxed">New session started. How can I help you?</div>
                 </div>`;
             if (window.innerWidth < 768) toggleSidebar();
         }
 
+        // Update banner when repo changes (called from app.js)
+        const _origOnRepoChange = window.onRepoChange;
+        document.addEventListener('DOMContentLoaded', () => {
+            const origFn = window.onRepoChange;
+        });
+
+        function onRepoChange(val) {
+            window.activeRepo = val || null;
+            const label = document.getElementById('active-repo-label');
+            const badge = document.getElementById('repo-badge');
+            const headerBadge = document.getElementById('header-repo-badge');
+            const bannerText = document.getElementById('banner-repo-text');
+            if (val) {
+                if(label) label.textContent = val;
+                if(badge) { badge.classList.remove('hidden'); }
+                if(headerBadge) { headerBadge.classList.remove('hidden'); headerBadge.textContent = '📁 ' + val; }
+                if(bannerText) bannerText.textContent = `Active repo: ${val}`;
+            } else {
+                if(badge) badge.classList.add('hidden');
+                if(headerBadge) headerBadge.classList.add('hidden');
+                if(bannerText) bannerText.textContent = 'Select a repo to start';
+            }
+            // Update app.js activeRepo
+            if (typeof window.activeRepo !== 'undefined') window.activeRepo = val || null;
+        }
+
         let sessions = JSON.parse(localStorage.getItem('hermes_sessions')||'[]');
         function renderSessions() {
-            document.getElementById('sessions-list').innerHTML = sessions.map(s=>`
+            const list = document.getElementById('sessions-list');
+            if (!list) return;
+            list.innerHTML = sessions.map(s=>`
                 <div class="p-3 rounded-xl hover:bg-white/5 cursor-pointer transition-all flex items-center gap-3 group">
                     <i class="fas fa-comment-alt text-gray-400 group-hover:text-blue-400 text-xs"></i>
                     <span class="text-sm truncate">${s.title}</span>

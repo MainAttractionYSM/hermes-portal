@@ -1,6 +1,8 @@
-const API_URL = 'https://noble-oxygen-coated-ala.trycloudflare.com/api/chat';
-const UPLOAD_URL = 'https://noble-oxygen-coated-ala.trycloudflare.com/api/upload';
-const APPROVE_URL = 'https://noble-oxygen-coated-ala.trycloudflare.com/api/approve';
+const BASE_URL = 'https://noble-oxygen-coated-ala.trycloudflare.com';
+const API_URL = `${BASE_URL}/api/chat`;
+const UPLOAD_URL = `${BASE_URL}/api/upload`;
+const APPROVE_URL = `${BASE_URL}/api/approve`;
+const REPOS_URL = `${BASE_URL}/api/repos`;
 
 const chatContainer = document.getElementById('chat-container');
 const userInput = document.getElementById('user-input');
@@ -9,6 +11,40 @@ const fileUpload = document.getElementById('file-upload');
 const filePreview = document.getElementById('file-preview');
 
 let attachedFiles = [];
+let activeRepo = null;
+
+// Load available repos on startup
+async function loadRepos() {
+    try {
+        const res = await fetch(REPOS_URL);
+        const data = await res.json();
+        const repos = data.repos || {};
+        const select = document.getElementById('repo-select');
+        select.innerHTML = '<option value="">Select repo...</option>';
+        Object.keys(repos).forEach(name => {
+            const opt = document.createElement('option');
+            opt.value = name;
+            opt.textContent = `${name} (${repos[name].file_count} files)`;
+            select.appendChild(opt);
+        });
+    } catch(e) {
+        console.error('Could not load repos:', e);
+    }
+}
+
+function onRepoChange(val) {
+    activeRepo = val || null;
+    const label = document.getElementById('active-repo-label');
+    const badge = document.getElementById('repo-badge');
+    if (val) {
+        label.textContent = val;
+        badge.classList.remove('hidden');
+        badge.textContent = val;
+    } else {
+        label.textContent = 'No repo';
+        badge.classList.add('hidden');
+    }
+}
 
 async function handleSend() {
     const text = userInput.value.trim();
@@ -26,19 +62,25 @@ async function handleSend() {
         const model = window.currentModel || 'gptoss';
         const mode = window.currentMode || 'chat';
 
+        const body = { message: text, model, mode, files: attachedFiles.map(f => f.name) };
+        if (mode === 'agent' && activeRepo) body.repo = activeRepo;
+
         const response = await fetch(API_URL, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ message: text, model, mode, files: attachedFiles.map(f => f.name) })
+            body: JSON.stringify(body)
         });
         const data = await response.json();
         removeTyping(typingId);
 
-        if (data.approval_required) {
+        if (data.needs_repo_selection) {
+            appendMessage('ai', data.response);
+            showRepoSelector(data.available_repos);
+        } else if (data.approval_required) {
             appendMessage('ai', data.response);
             showApprovalCard(data);
         } else {
-            appendMessage('ai', data.response || 'No response from agent.');
+            appendMessage('ai', data.response || 'No response.');
         }
     } catch (e) {
         removeTyping(typingId);
@@ -50,14 +92,36 @@ async function handleSend() {
     filePreview.classList.add('hidden');
 }
 
+function showRepoSelector(repos) {
+    const card = document.createElement('div');
+    card.className = 'max-w-4xl mx-auto';
+    const buttons = repos.map(r => `
+        <button onclick="selectRepoFromChat('${r}')" 
+            class="px-4 py-2 glass rounded-xl text-sm hover:bg-blue-600/30 transition-all border border-white/10 hover:border-blue-500/50">
+            📁 ${r}
+        </button>`).join('');
+    card.innerHTML = `<div class="glass rounded-2xl p-4 border border-blue-500/30 space-y-3">
+        <p class="text-sm text-gray-300">Choose a repository to work on:</p>
+        <div class="flex flex-wrap gap-2">${buttons}</div>
+    </div>`;
+    chatContainer.appendChild(card);
+    chatContainer.scrollTop = chatContainer.scrollHeight;
+}
+
+function selectRepoFromChat(repo) {
+    activeRepo = repo;
+    document.getElementById('repo-select').value = repo;
+    onRepoChange(repo);
+    appendMessage('ai', `Switched to repo: ${repo}. I now have full access to its files. What would you like me to do?`);
+}
+
 function showApprovalCard(data) {
     const card = document.createElement('div');
     card.className = 'max-w-4xl mx-auto';
     card.innerHTML = `
         <div class="glass rounded-2xl p-4 border border-yellow-500/30 space-y-3">
             <div class="flex items-center gap-2 text-yellow-400 font-medium text-sm">
-                <i class="fas fa-code-branch"></i>
-                Code Ready for Review
+                <i class="fas fa-code-branch"></i> Code Ready for Review
             </div>
             <div class="text-xs text-gray-400 font-mono bg-black/30 p-3 rounded-xl whitespace-pre">${escapeHtml(data.diff)}</div>
             <div class="text-xs text-gray-400">
@@ -65,7 +129,7 @@ function showApprovalCard(data) {
                 <div class="font-mono bg-black/30 p-2 rounded-lg whitespace-pre">${escapeHtml(data.test_results)}</div>
             </div>
             <div class="flex gap-2 pt-1">
-                <button onclick="approveChanges('${data.approval_id}', true, this)" 
+                <button onclick="approveChanges('${data.approval_id}', true, this)"
                     class="flex-1 py-2 px-4 bg-green-600 hover:bg-green-500 text-white text-sm rounded-xl transition-all flex items-center justify-center gap-2">
                     <i class="fas fa-check"></i> Approve & Push to GitHub
                 </button>
@@ -82,7 +146,6 @@ function showApprovalCard(data) {
 async function approveChanges(approvalId, approved, btn) {
     const card = btn.closest('.glass');
     card.innerHTML = '<div class="text-center text-gray-400 text-sm py-2"><i class="fas fa-spinner fa-spin mr-2"></i>Processing...</div>';
-
     try {
         const response = await fetch(APPROVE_URL, {
             method: 'POST',
@@ -97,17 +160,23 @@ async function approveChanges(approvalId, approved, btn) {
     chatContainer.scrollTop = chatContainer.scrollHeight;
 }
 
+function getModelAvatar(model) {
+    if (model === 'kimi') return '🌙';
+    return '◼';
+}
+
 function escapeHtml(text) {
     return (text || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
 }
 
 function showTyping() {
     const id = 'typing-' + Date.now();
+    const model = window.currentModel || 'gptoss';
     const wrap = document.createElement('div');
     wrap.className = 'flex gap-4 max-w-4xl mx-auto';
     wrap.id = id;
     wrap.innerHTML = `
-        <div class="w-8 h-8 rounded-lg bg-blue-600 flex-shrink-0 flex items-center justify-center text-xs font-bold">H</div>
+        <div class="w-8 h-8 rounded-lg bg-blue-600 flex-shrink-0 flex items-center justify-center text-sm shadow-lg shadow-blue-600/20">${getModelAvatar(model)}</div>
         <div class="chat-bubble-ai p-4 flex gap-1 items-center">
             <span class="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style="animation-delay:0s"></span>
             <span class="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style="animation-delay:0.2s"></span>
@@ -123,11 +192,12 @@ function removeTyping(id) {
 }
 
 function appendMessage(role, content) {
+    const model = window.currentModel || 'gptoss';
     const wrap = document.createElement('div');
     wrap.className = 'flex gap-4 max-w-4xl mx-auto ' + (role === 'user' ? 'justify-end' : '');
     const avatar = document.createElement('div');
-    avatar.className = 'w-8 h-8 rounded-lg bg-blue-600 flex-shrink-0 flex items-center justify-center text-xs font-bold shadow-lg shadow-blue-600/20';
-    avatar.innerText = 'H';
+    avatar.className = 'w-8 h-8 rounded-lg bg-blue-600 flex-shrink-0 flex items-center justify-center text-sm shadow-lg shadow-blue-600/20';
+    avatar.textContent = getModelAvatar(model);
     const bubble = document.createElement('div');
     bubble.className = 'p-4 text-sm leading-relaxed shadow-sm ' + (role === 'user' ? 'chat-bubble-user text-white' : 'chat-bubble-ai');
     bubble.innerText = content;
@@ -168,3 +238,6 @@ sendBtn.onclick = handleSend;
 userInput.onkeydown = (e) => {
     if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend(); }
 };
+
+// Load repos on startup
+loadRepos();
