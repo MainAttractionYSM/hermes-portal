@@ -96,7 +96,7 @@ function showRepoSelector(repos) {
     const card = document.createElement('div');
     card.className = 'max-w-4xl mx-auto';
     const buttons = repos.map(r => `
-        <button onclick="selectRepoFromChat('${r}')" 
+        <button onclick="selectRepoFromChat('${r}', this)" 
             class="px-4 py-2 glass rounded-xl text-sm hover:bg-blue-600/30 transition-all border border-white/10 hover:border-blue-500/50">
             📁 ${r}
         </button>`).join('');
@@ -108,10 +108,11 @@ function showRepoSelector(repos) {
     chatContainer.scrollTop = chatContainer.scrollHeight;
 }
 
-function selectRepoFromChat(repo) {
+function selectRepoFromChat(repo, btn) {
     activeRepo = repo;
     document.getElementById('repo-select').value = repo;
     onRepoChange(repo);
+    btn.closest('.max-w-4xl').remove();
     appendMessage('ai', `Switched to repo: ${repo}. I now have full access to its files. What would you like me to do?`);
 }
 
